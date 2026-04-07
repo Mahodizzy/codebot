@@ -161,21 +161,38 @@ async def get_disney(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else:
                         body = msg_obj.get_payload(decode=True).decode(errors='ignore')
                     
-                    # 1. Limpiamos el HTML profundamente
-                    texto_limpio = re.sub(r'<style.*?>.*?</style>', '', body, flags=re.DOTALL) # Quitamos CSS
-                    texto_limpio = html.unescape(re.sub(r'<[^>]+>', ' ', texto_limpio)) # Quitamos etiquetas
+                    # 1. Limpieza extrema del HTML
+                    # Quitamos todo el bloque de <style> y <head> donde suelen estar esos números falsos
+                    body = re.sub(r'<(style|head|script)[^>]*>.*?</\1>', '', body, flags=re.DOTALL | re.IGNORECASE)
+                    texto_plano = html.unescape(re.sub(r'<[^>]+>', ' ', body))
+                    # Colapsamos espacios múltiples en uno solo para que la búsqueda sea lineal
+                    texto_plano = " ".join(texto_plano.split())
+
+                    # 2. BÚSQUEDA POR PATRÓN DE DISEÑO DE DISNEY:
+                    # En los correos nuevos, el código viene después de "vencerá en 15 minutos" o "acceso único"
+                    # Buscamos 6 dígitos que NO sean los de sistema conocidos
+                    patrones = [
+                        r'vencerá en 15 minutos\s*(\d{6})',
+                        r'código de acceso único[^\d]*(\d{6})',
+                        r'acceso para Disney\+[^\d]*(\d{6})',
+                        r'is:\s*(\d{6})'
+                    ]
                     
-                    # 2. BUSQUEDA INTELIGENTE:
-                    # Buscamos 6 números que estén cerca de palabras clave o rodeados de espacios grandes
-                    # Esto evita capturar fechas o IDs de rastreo ocultos.
-                    match = re.search(r'(?:code|código|is|es)[^\d]*(\d{6})', texto_limpio, re.IGNORECASE)
+                    cod = None
+                    for p in patrones:
+                        m = re.search(p, texto_plano, re.IGNORECASE)
+                        if m:
+                            cod = m.group(1)
+                            break
                     
-                    if match:
-                        cod = match.group(1)
-                    else:
-                        # Si no hay palabras clave, buscamos el primer número de 6 dígitos que NO sea 202124
-                        nums = re.findall(r'\b\d{6}\b', texto_limpio)
-                        cod = next((n for n in nums if n not in ["202124", "707070", "000000"]), None)
+                    # 3. Si no lo halló con patrones, buscamos el último de 6 dígitos que aparezca en el texto
+                    # (Disney suele poner el código real al final del texto principal)
+                    if not cod:
+                        todos_los_nums = re.findall(r'\b\d{6}\b', texto_plano)
+                        # Filtramos los números basura conocidos
+                        filtrados = [n for n in todos_los_nums if n not in ["755059", "202124", "707070", "000000", "212024"]]
+                        if filtrados:
+                            cod = filtrados[0] # Tomamos el primero que encuentre tras limpiar
 
                     if cod:
                         fecha_envio = msg_obj.get("Date")
@@ -183,7 +200,7 @@ async def get_disney(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         encontrado = True; break
             
             if not encontrado: 
-                await update.message.reply_text("❌ Se encontró el correo, pero el código no pudo ser extraído. Revisa manualmente.")
+                await update.message.reply_text("❌ No se pudo extraer el código. Verifica si el correo llegó correctamente.")
         
         mail.logout()
     except Exception as e: 
