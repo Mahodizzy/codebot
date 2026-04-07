@@ -292,41 +292,90 @@ async def get_netflix(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_prime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    if not context.args: return
-    dest = context.args[0].lower().strip()
-    ok, msg = tiene_permiso(user_id, dest)
-    if not ok:
-        await update.message.reply_text(msg); return
-    await update.message.reply_text(f"📦 Buscando Amazon para: `{dest}`...")
+    if not context.args:
+        await update.message.reply_text("❌ Uso: `/codeprime correo@ejemplo.com`", parse_mode='Markdown')
+        return
+
+    destinatario_objetivo = context.args[0].lower().strip()
+    
+    # Validar Permiso
+    autorizado, mensaje = tiene_permiso(user_id, destinatario_objetivo)
+    if not autorizado:
+        await update.message.reply_text(mensaje)
+        return
+
+    await update.message.reply_text(f"📦 Buscando el código más reciente de Amazon para: `{destinatario_objetivo}`...", parse_mode='Markdown')
+
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
-        criterio = f'(FROM "account-update@amazon.com" SINCE "{datetime.datetime.now().strftime("%d-%b-%Y")}")'
-        _, data = mail.search(None, criterio)
+
+        # Buscamos correos de Amazon de hoy
+        fecha_hoy = datetime.datetime.now().strftime("%d-%b-%Y")
+        criterio = f'(FROM "account-update@amazon.com" SINCE "{fecha_hoy}")'
+        status, data = mail.search(None, criterio)
         ids = data[0].split()
+
         if not ids:
-            await update.message.reply_text("❌ No hay correos hoy.")
-        else:
-            encontrado = False
-            for m_id in reversed(ids):
-                _, d = mail.fetch(m_id, '(RFC822)')
-                msg_obj = email.message_from_bytes(d[0][1])
-                if dest in str(msg_obj.get("To", "")).lower():
-                    body = ""
-                    if msg_obj.is_multipart():
-                        for part in msg_obj.walk():
-                            if part.get_content_type() in ["text/plain", "text/html"]:
-                                body += part.get_payload(decode=True).decode(errors='ignore')
-                    else: body = msg_obj.get_payload(decode=True).decode(errors='ignore')
-                    txt = html.unescape(re.sub(r'<[^>]+>', ' ', body))
-                    match = re.search(r'verification code is:\s*(\d{6})', txt, re.IGNORECASE)
-                    if match:
-                        await update.message.reply_text(f"✅ **AMAZON**: `{match.group(1)}`", parse_mode='Markdown')
-                        encontrado = True; break
-            if not encontrado: await update.message.reply_text("❌ Código no hallado.")
+            await update.message.reply_text("❌ No se encontraron correos de Amazon recibidos hoy.")
+            mail.logout()
+            return
+
+        encontrado = False
+        # reversed(ids) asegura que empezamos por el ÚLTIMO (el más reciente)
+        for mail_id in reversed(ids):
+            status, msg_data = mail.fetch(mail_id, '(RFC822)')
+            msg = email.message_from_bytes(msg_data[0][1])
+            para_quien = str(msg.get("To", "")).lower()
+
+            # Verificamos si el correo es para el cliente solicitado
+            if destinatario_objetivo in para_quien:
+                body = ""
+                # Extraemos el contenido del correo (priorizando HTML que es donde suelen venir los códigos con diseño)
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        content_type = part.get_content_type()
+                        if content_type in ["text/plain", "text/html"]:
+                            body += part.get_payload(decode=True).decode(errors='ignore')
+                else:
+                    body = msg.get_payload(decode=True).decode(errors='ignore')
+
+                # Limpiamos el HTML para que sea solo texto y evitar interferencias de etiquetas
+                texto_limpio = html.unescape(re.sub(r'<[^>]+>', ' ', body))
+                
+                # Intentamos varios patrones de búsqueda para Amazon
+                # 1. El que vimos en tu imagen
+                # 2. Búsqueda genérica de 6 dígitos cerca de palabras clave
+                match = re.search(r'verification code is:\s*(\d{6})', texto_limpio, re.IGNORECASE)
+                
+                if not match:
+                    # Intento alternativo: buscar cualquier número de 6 dígitos que no sea basura
+                    todos_los_nums = re.findall(r'\b\d{6}\b', texto_limpio)
+                    if todos_los_nums:
+                        # Amazon suele poner el código al principio o ser el único de 6 dígitos relevante
+                        codigo = todos_los_nums[0]
+                    else:
+                        codigo = None
+                else:
+                    codigo = match.group(1)
+
+                if codigo:
+                    await update.message.reply_text(
+                        f"✅ **CÓDIGO AMAZON RECIENTE**\n"
+                        f"📧 `{destinatario_objetivo}`\n"
+                        f"🔢 `{codigo}`", 
+                        parse_mode='Markdown'
+                    )
+                    encontrado = True
+                    break # Salimos del bucle al encontrar el primero (el más nuevo)
+        
+        if not encontrado: 
+            await update.message.reply_text("❌ Se encontró el correo pero no se pudo extraer el código de 6 dígitos.")
+        
         mail.logout()
-    except Exception as e: await update.message.reply_text(f"⚠️ Error: {e}")
+    except Exception as e: 
+        await update.message.reply_text(f"⚠️ Error en la conexión: {str(e)}")
 
 # --- 7. ARRANQUE DEL SISTEMA ---
 if __name__ == '__main__':
