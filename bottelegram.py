@@ -208,42 +208,87 @@ async def get_disney(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
 async def get_netflix(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    if not context.args: return
-    dest = context.args[0].lower().strip()
-    ok, msg = tiene_permiso(user_id, dest)
-    if not ok:
-        await update.message.reply_text(msg); return
-    await update.message.reply_text(f"🎥 Buscando Netflix para: `{dest}`...")
+    if not context.args:
+        await update.message.reply_text("❌ Uso: `/codenetflix correo@ejemplo.com`", parse_mode='Markdown')
+        return
+
+    destinatario_objetivo = context.args[0].lower().strip()
+    
+    # Validar Permiso
+    autorizado, mensaje = tiene_permiso(user_id, destinatario_objetivo)
+    if not autorizado:
+        await update.message.reply_text(mensaje)
+        return
+
+    await update.message.reply_text(f"🎥 Buscando el link más reciente de Netflix para: `{destinatario_objetivo}`...", parse_mode='Markdown')
+
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
-        criterio = f'(FROM "info@account.netflix.com" SINCE "{datetime.datetime.now().strftime("%d-%b-%Y")}")'
-        _, data = mail.search(None, criterio)
+
+        fecha_hoy = datetime.datetime.now().strftime("%d-%b-%Y")
+        # Filtramos por el remitente de Netflix y el asunto específico de tu imagen
+        criterio = f'(FROM "info@account.netflix.com" SINCE "{fecha_hoy}")'
+        status, data = mail.search(None, criterio)
         ids = data[0].split()
+
         if not ids:
-            await update.message.reply_text("❌ No hay correos hoy.")
-        else:
-            encontrado = False
-            for m_id in reversed(ids):
-                _, d = mail.fetch(m_id, '(RFC822)')
-                msg_obj = email.message_from_bytes(d[0][1])
-                asu = limpiar_texto(msg_obj.get("Subject", ""))
-                if dest in str(msg_obj.get("To", "")).lower() and "acceso temporal" in asu.lower():
-                    payload = msg_obj.get_payload(decode=True).decode(errors='ignore') if not msg_obj.is_multipart() else ""
-                    if msg_obj.is_multipart():
-                        for part in msg_obj.walk():
-                            if part.get_content_type() == "text/html":
-                                payload = part.get_payload(decode=True).decode(errors='ignore'); break
-                    body = payload.replace('=\r\n', '').replace('=\n', '')
-                    links = re.findall(r'href=[\'"]?([^\'" >]+)', body)
-                    url = next((l for l in links if "netflix.com" in l and ("update" in l or "travel" in l or "verify" in l)), None)
-                    if url:
-                        await update.message.reply_text(f"✅ **NETFLIX**: [SOLICITAR CÓDIGO]({url})", parse_mode='Markdown')
-                        encontrado = True; break
-            if not encontrado: await update.message.reply_text("❌ Link no hallado.")
+            await update.message.reply_text("❌ No hay correos de Netflix hoy.")
+            mail.logout()
+            return
+
+        encontrado = False
+        # Buscamos desde el más nuevo (último)
+        for mail_id in reversed(ids):
+            status, msg_data = mail.fetch(mail_id, '(RFC822)')
+            msg = email.message_from_bytes(msg_data[0][1])
+            
+            # Limpiamos el asunto para verificar
+            asunto = limpiar_texto(msg.get("Subject", ""))
+            para_quien = str(msg.get("To", "")).lower()
+
+            # Verificamos que sea el correo correcto y el asunto de acceso temporal
+            if destinatario_objetivo in para_quien and "acceso temporal" in asunto.lower():
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        if part.get_content_type() == "text/html":
+                            # Importante: decodificamos y quitamos saltos de línea basura (=)
+                            payload = part.get_payload(decode=True).decode(errors='ignore')
+                            body = payload.replace('=\r\n', '').replace('=\n', '')
+                            break
+                else:
+                    body = msg.get_payload(decode=True).decode(errors='ignore').replace('=\r\n', '')
+
+                # Buscamos el link del botón "Solicitar código"
+                # Netflix usa estructuras que contienen /account/travel/verify o similares
+                links = re.findall(r'href=[\'"]?([^\'" >]+)', body)
+                
+                # Filtramos links que sean de netflix y que tengan que ver con actualización o login
+                url_final = None
+                for link in links:
+                    if "netflix.com" in link and ("update" in link or "travel" in link or "verify" in link):
+                        url_final = link
+                        break
+                
+                if url_final:
+                    await update.message.reply_text(
+                        f"✅ **LINK NETFLIX ENCONTRADO**\n"
+                        f"📧 `{destinatario_objetivo}`\n"
+                        f"🔗 [CLIC AQUÍ PARA SOLICITAR CÓDIGO]({url_final})", 
+                        parse_mode='Markdown',
+                        disable_web_page_preview=True # Evita que se vea la vista previa gigante
+                    )
+                    encontrado = True
+                    break
+        
+        if not encontrado: 
+            await update.message.reply_text("❌ Se encontró el correo, pero el link ha caducado o no se pudo extraer.")
+        
         mail.logout()
-    except Exception as e: await update.message.reply_text(f"⚠️ Error: {e}")
+    except Exception as e: 
+        await update.message.reply_text(f"⚠️ Error: {str(e)}")
 
 async def get_prime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
