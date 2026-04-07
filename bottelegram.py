@@ -298,84 +298,85 @@ async def get_prime(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     destinatario_objetivo = context.args[0].lower().strip()
     
-    # Validar Permiso
     autorizado, mensaje = tiene_permiso(user_id, destinatario_objetivo)
     if not autorizado:
         await update.message.reply_text(mensaje)
         return
 
-    await update.message.reply_text(f"📦 Buscando el código más reciente de Amazon para: `{destinatario_objetivo}`...", parse_mode='Markdown')
+    await update.message.reply_text(f"📦 Buscando el código de Amazon para: `{destinatario_objetivo}`...")
 
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
 
-        # Buscamos correos de Amazon de hoy
-        fecha_hoy = datetime.datetime.now().strftime("%d-%b-%Y")
-        criterio = f'(FROM "account-update@amazon.com" SINCE "{fecha_hoy}")'
-        status, data = mail.search(None, criterio)
+        # Buscamos correos de Amazon (Quitamos el SINCE hoy para que si no hay de hoy, busque el último disponible)
+        status, data = mail.search(None, '(FROM "account-update@amazon.com")')
         ids = data[0].split()
 
         if not ids:
-            await update.message.reply_text("❌ No se encontraron correos de Amazon recibidos hoy.")
+            await update.message.reply_text("❌ No se encontró ningún correo de Amazon en la bandeja.")
             mail.logout()
             return
 
         encontrado = False
-        # reversed(ids) asegura que empezamos por el ÚLTIMO (el más reciente)
         for mail_id in reversed(ids):
             status, msg_data = mail.fetch(mail_id, '(RFC822)')
             msg = email.message_from_bytes(msg_data[0][1])
             para_quien = str(msg.get("To", "")).lower()
 
-            # Verificamos si el correo es para el cliente solicitado
             if destinatario_objetivo in para_quien:
                 body = ""
-                # Extraemos el contenido del correo (priorizando HTML que es donde suelen venir los códigos con diseño)
                 if msg.is_multipart():
                     for part in msg.walk():
-                        content_type = part.get_content_type()
-                        if content_type in ["text/plain", "text/html"]:
-                            body += part.get_payload(decode=True).decode(errors='ignore')
+                        if part.get_content_type() == "text/html":
+                            body = part.get_payload(decode=True).decode(errors='ignore')
+                            break
                 else:
                     body = msg.get_payload(decode=True).decode(errors='ignore')
 
-                # Limpiamos el HTML para que sea solo texto y evitar interferencias de etiquetas
+                # --- MEJORA DE EXTRACCIÓN ---
+                # 1. Quitamos estilos CSS que confunden al buscador de números
+                body = re.sub(r'<(style|head)[^>]*>.*?</\1>', '', body, flags=re.DOTALL | re.IGNORECASE)
+                # 2. Convertimos HTML a texto limpio
                 texto_limpio = html.unescape(re.sub(r'<[^>]+>', ' ', body))
+                # 3. Quitamos espacios extras y saltos de línea raros
+                texto_limpio = " ".join(texto_limpio.split())
+
+                # Buscamos el código con patrones comunes de Amazon
+                # Amazon suele decir "Verification code: 123456" o simplemente pone el número grande
+                match = re.search(r'(?:code is:|código es:|verification code:)\s*(\d{6})', texto_limpio, re.IGNORECASE)
                 
-                # Intentamos varios patrones de búsqueda para Amazon
-                # 1. El que vimos en tu imagen
-                # 2. Búsqueda genérica de 6 dígitos cerca de palabras clave
-                match = re.search(r'verification code is:\s*(\d{6})', texto_limpio, re.IGNORECASE)
-                
-                if not match:
-                    # Intento alternativo: buscar cualquier número de 6 dígitos que no sea basura
-                    todos_los_nums = re.findall(r'\b\d{6}\b', texto_limpio)
-                    if todos_los_nums:
-                        # Amazon suele poner el código al principio o ser el único de 6 dígitos relevante
-                        codigo = todos_los_nums[0]
-                    else:
-                        codigo = None
-                else:
+                codigo = None
+                if match:
                     codigo = match.group(1)
+                else:
+                    # Si el patrón falla, buscamos cualquier número de 6 dígitos 
+                    # Pero filtramos números que sabemos que son basura (como años 2024, etc.)
+                    todos_los_nums = re.findall(r'\b\d{6}\b', texto_limpio)
+                    for n in todos_los_nums:
+                        if n not in ["202124", "755059", "000000"]: # Filtro de seguridad
+                            codigo = n
+                            break
 
                 if codigo:
+                    fecha_envio = msg.get("Date")
                     await update.message.reply_text(
-                        f"✅ **CÓDIGO AMAZON RECIENTE**\n"
+                        f"✅ **CÓDIGO AMAZON**\n"
                         f"📧 `{destinatario_objetivo}`\n"
-                        f"🔢 `{codigo}`", 
+                        f"🔢 `{codigo}`\n"
+                        f"📅 *Enviado: {fecha_envio}*", 
                         parse_mode='Markdown'
                     )
                     encontrado = True
-                    break # Salimos del bucle al encontrar el primero (el más nuevo)
+                    break
         
         if not encontrado: 
-            await update.message.reply_text("❌ Se encontró el correo pero no se pudo extraer el código de 6 dígitos.")
+            await update.message.reply_text("❌ No se encontró un código válido en los correos de este destinatario.")
         
         mail.logout()
     except Exception as e: 
-        await update.message.reply_text(f"⚠️ Error en la conexión: {str(e)}")
+        await update.message.reply_text(f"⚠️ Error: {str(e)}")
 
 # --- 7. ARRANQUE DEL SISTEMA ---
 if __name__ == '__main__':
