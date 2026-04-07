@@ -131,36 +131,63 @@ async def get_disney(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ok, msg = tiene_permiso(user_id, dest)
     if not ok:
         await update.message.reply_text(msg); return
-    await update.message.reply_text(f"🎬 Buscando Disney+ para: `{dest}`...")
+
+    await update.message.reply_text(f"🎬 Buscando el código más reciente para: `{dest}`...")
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
-        criterio = f'(FROM "disneyplus@trx.mail2.disneyplus.com" SINCE "{datetime.datetime.now().strftime("%d-%b-%Y")}")'
-        _, data = mail.search(None, criterio)
+        
+        # 1. Intentamos buscar correos de HOY primero
+        fecha_hoy = datetime.datetime.now().strftime("%d-%b-%Y")
+        criterio_hoy = f'(FROM "disneyplus@trx.mail2.disneyplus.com" SINCE "{fecha_hoy}")'
+        _, data = mail.search(None, criterio_hoy)
         ids = data[0].split()
+
+        # 2. Si no hay de hoy, buscamos TODOS los de Disney para traer el último
         if not ids:
-            await update.message.reply_text("❌ No hay correos hoy.")
+            _, data_all = mail.search(None, '(FROM "disneyplus@trx.mail2.disneyplus.com")')
+            ids = data_all[0].split()
+
+        if not ids:
+            await update.message.reply_text("❌ No se encontró ningún correo de Disney+ en la bandeja.")
         else:
             encontrado = False
+            # Recorremos desde el más nuevo al más viejo
             for m_id in reversed(ids):
                 _, d = mail.fetch(m_id, '(RFC822)')
                 msg_obj = email.message_from_bytes(d[0][1])
+                
+                # Verificamos si el correo es para el destinatario solicitado
                 if dest in str(msg_obj.get("To", "")).lower():
                     body = ""
                     if msg_obj.is_multipart():
                         for part in msg_obj.walk():
                             if part.get_content_type() == "text/html":
                                 body = part.get_payload(decode=True).decode(errors='ignore'); break
-                    else: body = msg_obj.get_payload(decode=True).decode(errors='ignore')
-                    nums = re.findall(r'\b\d{6}\b', html.unescape(re.sub(r'<[^>]+>', '\n', body)))
-                    cod = next((n for n in nums if n not in ["707070", "000000"]), None)
+                    else:
+                        body = msg_obj.get_payload(decode=True).decode(errors='ignore')
+                    
+                    # Limpiamos el HTML para evitar capturar basura
+                    texto_plano = html.unescape(re.sub(r'<[^>]+>', '\n', body))
+                    
+                    # Buscamos números de 6 dígitos
+                    nums = re.findall(r'\b\d{6}\b', texto_plano)
+                    
+                    # FILTRO: Evitamos el número molesto 212024 y otros comunes de sistema
+                    cod = next((n for n in nums if n not in ["212024", "707070", "000000"]), None)
+                    
                     if cod:
-                        await update.message.reply_text(f"✅ **DISNEY+**: `{cod}`", parse_mode='Markdown')
+                        fecha_envio = msg_obj.get("Date")
+                        await update.message.reply_text(f"✅ **CÓDIGO DISNEY+**: `{cod}`\n📅 *Enviado el: {fecha_envio}*", parse_mode='Markdown')
                         encontrado = True; break
-            if not encontrado: await update.message.reply_text("❌ Código no hallado.")
+            
+            if not encontrado: 
+                await update.message.reply_text("❌ No se encontró un código válido para ese correo (solo se hallaron códigos de sistema).")
+        
         mail.logout()
-    except Exception as e: await update.message.reply_text(f"⚠️ Error: {e}")
+    except Exception as e: 
+        await update.message.reply_text(f"⚠️ Error: {e}")
 
 async def get_netflix(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
