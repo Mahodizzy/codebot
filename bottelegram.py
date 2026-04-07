@@ -262,21 +262,27 @@ async def get_prime(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- ARRANQUE ---
 if __name__ == '__main__':
-    keep_alive() # Inicia servidor web para Render
+    # 1. Configurar el puerto para Render
     port = int(os.environ.get("PORT", 5000))
-    # Ejecutamos Flask en segundo plano
+    
+    # 2. Iniciar el servidor Flask en segundo plano (reemplaza a keep_alive)
     from threading import Thread
+    # Usamos 'app' si ese es el nombre de tu objeto Flask (e.g., app = Flask(__name__))
     Thread(target=lambda: app.run(host="0.0.0.0", port=port)).start()
-    app = ApplicationBuilder().token(TOKEN_TELEGRAM).build()
     
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("correos", ver_mis_correos))
-    app.add_handler(CommandHandler("usuarios", listar_usuarios))
-    app.add_handler(CommandHandler("registrar", registrar))
-    app.add_handler(CommandHandler("eliminar", eliminar))
-    app.add_handler(CommandHandler("codedisney", get_disney))
-    app.add_handler(CommandHandler("codenetflix", get_netflix))
-    app.add_handler(CommandHandler("codeprime", get_prime))
+    # 3. Configurar el Bot de Telegram (usaremos 'bot_app' para no confundir con Flask)
+    bot_app = ApplicationBuilder().token(TOKEN_TELEGRAM).build()
     
-    print("Bot iniciando...")
-    application.run_polling()
+    # 4. Registrar los comandos
+    bot_app.add_handler(CommandHandler("start", start))
+    bot_app.add_handler(CommandHandler("correos", ver_mis_correos))
+    bot_app.add_handler(CommandHandler("usuarios", listar_usuarios))
+    bot_app.add_handler(CommandHandler("registrar", registrar))
+    bot_app.add_handler(CommandHandler("eliminar", eliminar))
+    bot_app.add_handler(CommandHandler("codedisney", get_disney))
+    bot_app.add_handler(CommandHandler("codenetflix", get_netflix))
+    bot_app.add_handler(CommandHandler("codeprime", get_prime))
+    
+    # 5. Iniciar el bot
+    print("🚀 Bot iniciado y servidor Flask corriendo en puerto", port)
+    bot_app.run_polling()
