@@ -263,6 +263,10 @@ async def get_prime(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- ARRANQUE ---
 if __name__ == '__main__':
     keep_alive() # Inicia servidor web para Render
+    port = int(os.environ.get("PORT", 5000))
+    # Ejecutamos Flask en segundo plano
+    from threading import Thread
+    Thread(target=lambda: app.run(host="0.0.0.0", port=port)).start()
     app = ApplicationBuilder().token(TOKEN_TELEGRAM).build()
     
     app.add_handler(CommandHandler("start", start))
@@ -274,5 +278,5 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("codenetflix", get_netflix))
     app.add_handler(CommandHandler("codeprime", get_prime))
     
-    print("🚀 Bot con MongoDB y Keep-Alive Activo.")
-    app.run_polling()
+    print("Bot iniciando...")
+    application.run_polling()
