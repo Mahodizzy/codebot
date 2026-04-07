@@ -14,41 +14,34 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from pymongo import MongoClient
 
-# --- CONFIGURACIÓN DE SERVIDOR PARA RENDER (KEEP ALIVE) ---
-app_web = Flask('')
+# --- 1. CONFIGURACIÓN DE SERVIDOR FLASK PARA RENDER ---
+app = Flask(__name__)
 
-@app_web.route('/')
+@app.route('/')
 def home():
-    return "Bot de Gestión Online 24/7"
+    return "Bot de Gestión Online 24/7 de Refills EC está Vivo 🚀"
 
-def run():
-    app_web.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
-def keep_alive():
-    t = Thread(target=run)
-    t.daemon = True
-    t.start()
-
-# --- CONFIGURACIÓN ---
+# --- 2. CONFIGURACIÓN DE CREDENCIALES ---
 EMAIL_USER = 'refills.ec@gmail.com'
 EMAIL_PASS = 'cdzt etdq zxjr vlab'
 IMAP_SERVER = 'imap.gmail.com'
-TOKEN_TELEGRAM = os.environ.get('TOKEN_TELEGRAM')
 ADMIN_ID = 1481058384
 
-# CONEXIÓN MONGO DB (Reemplaza con tu URL real de Atlas)
+# Usamos variables de entorno para seguridad en Render
+TOKEN_TELEGRAM = os.environ.get('TOKEN_TELEGRAM')
 MONGO_URI = os.environ.get('MONGO_URI')
-client = MongoClient(MONGO_URI)
-db_mongo = client['bot_gestion'] # Nombre de la base de datos
-coleccion = db_mongo['usuarios'] # Nombre de la tabla
 
-# --- GESTIÓN DE BASE DE DATOS MONGODB ---
+# --- 3. CONEXIÓN MONGODB ---
+client = MongoClient(MONGO_URI)
+db_mongo = client['bot_gestion']
+coleccion = db_mongo['usuarios']
+
+# --- 4. GESTIÓN DE BASE DE DATOS ---
 
 def obtener_permisos(user_id):
     user = coleccion.find_one({"user_id": str(user_id)})
     if user:
         return user['permisos']
-    # Si eres el admin y no estás, te creamos con acceso total
     if user_id == ADMIN_ID:
         coleccion.update_one({"user_id": str(ADMIN_ID)}, {"$set": {"permisos": ["*"]}}, upsert=True)
         return ["*"]
@@ -61,7 +54,6 @@ def tiene_permiso(user_id, correo_consultado):
     if correo_consultado.lower() in [c.lower() for c in permisos]: return True, ""
     return False, f"⚠️ No tienes permiso para: {correo_consultado}"
 
-# --- UTILIDADES ---
 def limpiar_texto(texto):
     if not texto: return ""
     decodificado, encoding = decode_header(texto)[0]
@@ -69,7 +61,7 @@ def limpiar_texto(texto):
         return decodificado.decode(encoding if encoding else 'utf-8', errors='ignore')
     return decodificado
 
-# --- COMANDOS ---
+# --- 5. COMANDOS DEL BOT ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
@@ -95,28 +87,19 @@ async def registrar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         await update.message.reply_text("❌ Uso: `/registrar [ID] [correo]`")
         return
-    
     id_target, correo = str(context.args[0]), context.args[1].lower().strip()
-    
-    # Usamos $addToSet para evitar correos duplicados en el mismo ID
-    coleccion.update_one(
-        {"user_id": id_target},
-        {"$addToSet": {"permisos": correo}},
-        upsert=True
-    )
+    coleccion.update_one({"user_id": id_target}, {"$addToSet": {"permisos": correo}}, upsert=True)
     await update.message.reply_text(f"✅ Acceso concedido a `{id_target}` para `{correo}`", parse_mode='Markdown')
 
 async def listar_usuarios(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.id != ADMIN_ID: return
     usuarios = coleccion.find()
-    
     informe = "👥 **Usuarios en MongoDB:**\n\n"
     count = 0
     for u in usuarios:
         count += 1
         permisos = ", ".join(u['permisos'])
         informe += f"🆔 `{u['user_id']}`\n📧 `{permisos}`\n\n"
-    
     if count == 0: informe = "📭 Base de datos vacía."
     await update.message.reply_text(informe, parse_mode='Markdown')
 
@@ -133,14 +116,13 @@ async def ver_mis_correos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not permisos:
         await update.message.reply_text("🚫 No tienes cuentas asignadas.")
         return
-    
     if "*" in permisos:
         await update.message.reply_text("🌟 Tienes acceso **TOTAL** (Admin).", parse_mode='Markdown')
     else:
         lista = "\n• ".join(permisos)
         await update.message.reply_text(f"📧 **Tus cuentas autorizadas:**\n\n• {lista}", parse_mode='Markdown')
 
-# --- FUNCIONES DE EXTRACCIÓN (REUTILIZADAS Y OPTIMIZADAS) ---
+# --- 6. FUNCIONES DE EXTRACCIÓN (DISNEY, NETFLIX, PRIME) ---
 
 async def get_disney(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
@@ -149,7 +131,6 @@ async def get_disney(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ok, msg = tiene_permiso(user_id, dest)
     if not ok:
         await update.message.reply_text(msg); return
-
     await update.message.reply_text(f"🎬 Buscando Disney+ para: `{dest}`...")
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
@@ -188,7 +169,6 @@ async def get_netflix(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ok, msg = tiene_permiso(user_id, dest)
     if not ok:
         await update.message.reply_text(msg); return
-
     await update.message.reply_text(f"🎥 Buscando Netflix para: `{dest}`...")
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
@@ -228,7 +208,6 @@ async def get_prime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ok, msg = tiene_permiso(user_id, dest)
     if not ok:
         await update.message.reply_text(msg); return
-
     await update.message.reply_text(f"📦 Buscando Amazon para: `{dest}`...")
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
@@ -260,20 +239,18 @@ async def get_prime(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mail.logout()
     except Exception as e: await update.message.reply_text(f"⚠️ Error: {e}")
 
-# --- ARRANQUE ---
+# --- 7. ARRANQUE DEL SISTEMA ---
 if __name__ == '__main__':
-    # 1. Configurar el puerto para Render
+    # Puerto de Render
     port = int(os.environ.get("PORT", 5000))
     
-    # 2. Iniciar el servidor Flask en segundo plano (reemplaza a keep_alive)
-    from threading import Thread
-    # Usamos 'app' si ese es el nombre de tu objeto Flask (e.g., app = Flask(__name__))
-    Thread(target=lambda: app.run(host="0.0.0.0", port=port)).start()
+    # Servidor Flask en segundo plano
+    Thread(target=lambda: app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)).start()
     
-    # 3. Configurar el Bot de Telegram (usaremos 'bot_app' para no confundir con Flask)
+    # Bot de Telegram
     bot_app = ApplicationBuilder().token(TOKEN_TELEGRAM).build()
     
-    # 4. Registrar los comandos
+    # Registro de comandos
     bot_app.add_handler(CommandHandler("start", start))
     bot_app.add_handler(CommandHandler("correos", ver_mis_correos))
     bot_app.add_handler(CommandHandler("usuarios", listar_usuarios))
@@ -283,6 +260,5 @@ if __name__ == '__main__':
     bot_app.add_handler(CommandHandler("codenetflix", get_netflix))
     bot_app.add_handler(CommandHandler("codeprime", get_prime))
     
-    # 5. Iniciar el bot
-    print("🚀 Bot iniciado y servidor Flask corriendo en puerto", port)
+    print(f"🚀 Bot en marcha. Servidor Flask en puerto {port}")
     bot_app.run_polling()
