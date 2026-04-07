@@ -33,11 +33,11 @@ def keep_alive():
 EMAIL_USER = 'refills.ec@gmail.com'
 EMAIL_PASS = 'cdzt etdq zxjr vlab'
 IMAP_SERVER = 'imap.gmail.com'
-TOKEN_TELEGRAM = '8264392560:AAEI_paV5QaqLln73DBBNi9N-gwSgXzUXyc'
+TOKEN_TELEGRAM = os.environ.get('TOKEN_TELEGRAM')
 ADMIN_ID = 1481058384
 
 # CONEXIÓN MONGO DB (Reemplaza con tu URL real de Atlas)
-MONGO_URI = "mongodb+srv://refillsec_db_user:vaSeDYitALwWvyoU@codebot.rn9m330.mongodb.net/?appName=codebot" 
+MONGO_URI = os.environ.get('MONGO_URI')
 client = MongoClient(MONGO_URI)
 db_mongo = client['bot_gestion'] # Nombre de la base de datos
 coleccion = db_mongo['usuarios'] # Nombre de la tabla
