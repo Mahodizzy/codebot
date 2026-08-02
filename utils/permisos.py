@@ -2,18 +2,15 @@ from config import ADMIN_ID
 from services.database.mongo import usuarios
 
 
+
 def es_admin(user_id):
-    """
-    Verifica si el usuario es administrador.
-    """
+
     return user_id == ADMIN_ID
 
 
 
+
 def obtener_usuario(user_id):
-    """
-    Busca un usuario registrado en MongoDB.
-    """
 
     return usuarios.find_one(
         {
@@ -23,55 +20,42 @@ def obtener_usuario(user_id):
 
 
 
-def obtener_correos_autorizados(user_id):
-    """
-    Devuelve la lista de correos permitidos
-    para un usuario.
-    """
 
-    # El administrador tiene acceso total
+def tiene_permiso(user_id, correo):
+
+
+    # Admin tiene acceso total
+
     if es_admin(user_id):
-        return ["*"]
+
+        return True, "Administrador"
 
 
-    usuario = obtener_usuario(user_id)
+
+    usuario = obtener_usuario(
+        user_id
+    )
 
 
     if not usuario:
-        return []
+
+        return False, "Usuario no registrado"
 
 
-    return usuario.get(
+
+    correos = usuario.get(
         "correos",
         []
     )
 
 
+    if correo.lower() in [
+        c.lower()
+        for c in correos
+    ]:
 
-def tiene_permiso(user_id, correo):
-    """
-    Verifica si el usuario puede consultar
-    ese correo específico.
-    """
-
-    correos = obtener_correos_autorizados(
-        user_id
-    )
-
-
-    # Administrador
-    if "*" in correos:
-        return True, "Administrador"
-
-
-    correo = correo.lower().strip()
-
-
-    if correo in correos:
         return True, "Correo autorizado"
 
 
-    return False, (
-        "❌ No tienes permiso para consultar "
-        "este correo."
-    )
+
+    return False, "Este correo no está autorizado"
