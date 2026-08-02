@@ -1,80 +1,94 @@
 from services.database.mongo import usuarios
 
 
-
 def registrar_usuario(
     user_id,
-    correo
+    cuentas=None
 ):
+    """
+    Crea un usuario nuevo.
+    """
 
-    usuario = usuarios.find_one(
+    usuario = {
+        "user_id": str(user_id),
+        "cuentas": cuentas or []
+    }
+
+    usuarios.insert_one(
+        usuario
+    )
+
+    return True
+
+
+
+def buscar_usuario(
+    user_id
+):
+    """
+    Busca un usuario por Telegram ID.
+    """
+
+    return usuarios.find_one(
         {
             "user_id": str(user_id)
         }
     )
 
 
-    if usuario:
-
-
-        usuarios.update_one(
-
-            {
-                "user_id": str(user_id)
-            },
-
-            {
-                "$addToSet":
-                {
-                    "correos": correo
-                }
-            }
-
-        )
-
-
-    else:
-
-
-        usuarios.insert_one(
-
-            {
-                "user_id": str(user_id),
-                "correos": [
-                    correo
-                ],
-                "permisos":
-                [
-                    "DISNEY",
-                    "NETFLIX",
-                    "PRIME"
-                ]
-            }
-
-        )
-
-
-
-
 
 def listar_usuarios():
+    """
+    Devuelve todos los usuarios.
+    """
 
     return list(
-        usuarios.find({})
+        usuarios.find()
     )
-
-
 
 
 
 def eliminar_usuario(
     user_id
 ):
+    """
+    Elimina un usuario.
+    """
 
-    usuarios.delete_one(
-
+    resultado = usuarios.delete_one(
         {
             "user_id": str(user_id)
         }
+    )
+
+    return resultado.deleted_count > 0
+
+
+
+def agregar_cuenta(
+    user_id,
+    servicio,
+    correo
+):
+    """
+    Agrega un correo autorizado.
+    """
+
+    usuarios.update_one(
+
+        {
+            "user_id": str(user_id)
+        },
+
+        {
+            "$push": {
+                "cuentas": {
+                    "servicio": servicio,
+                    "correo": correo
+                }
+            }
+        }
 
     )
+
+    return True
