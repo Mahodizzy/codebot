@@ -1,45 +1,108 @@
 from services.database.mongo import usuarios
 
 
-def registrar_usuario(user_id, permisos):
+def registrar_usuario(user_id, correo):
     """
-    Registra un usuario nuevo o actualiza sus permisos.
+    Crea un usuario nuevo
+    con su primer correo autorizado.
     """
 
-    usuarios.update_one(
-        {"user_id": str(user_id)},
+    usuario_existente = usuarios.find_one(
         {
-            "$set": {
-                "user_id": str(user_id),
-                "permisos": permisos
-            }
-        },
-        upsert=True
+            "user_id": str(user_id)
+        }
+    )
+
+    if usuario_existente:
+
+        return agregar_correo(
+            user_id,
+            correo
+        )
+
+
+    usuarios.insert_one(
+        {
+            "user_id": str(user_id),
+            "correos": [
+                correo.lower().strip()
+            ]
+        }
     )
 
     return True
 
 
-def eliminar_usuario(user_id):
+
+def agregar_correo(user_id, correo):
     """
-    Elimina un usuario.
+    Agrega un correo autorizado
+    a un usuario existente.
     """
 
-    resultado = usuarios.delete_one(
-        {"user_id": str(user_id)}
+    correo = correo.lower().strip()
+
+
+    usuario = usuarios.find_one(
+        {
+            "user_id": str(user_id)
+        }
     )
 
-    return resultado.deleted_count > 0
+
+    if not usuario:
+
+        return False
+
+
+
+    correos = usuario.get(
+        "correos",
+        []
+    )
+
+
+    if correo in correos:
+
+        return False
+
+
+
+    correos.append(
+        correo
+    )
+
+
+    usuarios.update_one(
+
+        {
+            "user_id": str(user_id)
+        },
+
+        {
+            "$set": {
+                "correos": correos
+            }
+        }
+
+    )
+
+
+    return True
+
 
 
 def obtener_usuario(user_id):
     """
-    Obtiene un usuario.
+    Busca un usuario.
     """
 
     return usuarios.find_one(
-        {"user_id": str(user_id)}
+        {
+            "user_id": str(user_id)
+        }
     )
+
 
 
 def listar_usuarios():
@@ -52,15 +115,75 @@ def listar_usuarios():
     )
 
 
-def actualizar_permisos(user_id, permisos):
 
-    resultado = usuarios.update_one(
-        {"user_id": str(user_id)},
+def eliminar_usuario(user_id):
+    """
+    Elimina completamente un usuario.
+    """
+
+    resultado = usuarios.delete_one(
         {
-            "$set": {
-                "permisos": permisos
-            }
+            "user_id": str(user_id)
         }
     )
 
-    return resultado.modified_count > 0
+
+    return resultado.deleted_count > 0
+
+
+
+def eliminar_correo(user_id, correo):
+    """
+    Elimina un correo específico
+    sin borrar al usuario.
+    """
+
+    usuario = obtener_usuario(
+        user_id
+    )
+
+
+    if not usuario:
+
+        return False
+
+
+
+    correos = usuario.get(
+        "correos",
+        []
+    )
+
+
+    correo = correo.lower().strip()
+
+
+
+    if correo not in correos:
+
+        return False
+
+
+
+    correos.remove(
+        correo
+    )
+
+
+
+    usuarios.update_one(
+
+        {
+            "user_id": str(user_id)
+        },
+
+        {
+            "$set": {
+                "correos": correos
+            }
+        }
+
+    )
+
+
+    return True
