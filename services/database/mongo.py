@@ -6,20 +6,28 @@ from config import (
 )
 
 
-# Conexión MongoDB
+# ==========================
+# CONEXIÓN MONGO
+# ==========================
 
 cliente = MongoClient(
     MONGO_URI
 )
 
 
-# Base de datos
+# Base de datos del bot
 
 db = cliente[
     DATABASE_NAME
 ]
 
 
-# Colección usuarios
+# ==========================
+# COLECCIONES
+# ==========================
 
-usuarios = db["usuarios"]
+
+usuarios = db.usuarios
+
+
+cuentas = db.cuentas
