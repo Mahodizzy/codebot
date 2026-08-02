@@ -25,9 +25,12 @@ def tiene_permiso(user_id, permiso):
     permisos = obtener_permisos(user_id)
 
     if not permisos:
-        return False
+        return False, "Usuario sin permisos"
 
     if "*" in permisos:
-        return True
+        return True, "Administrador"
 
-    return permiso in permisos
+    if permiso in permisos:
+        return True, "Permiso concedido"
+
+    return False, "No tienes permiso para usar este servicio"
