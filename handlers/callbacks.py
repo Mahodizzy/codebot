@@ -1,3 +1,4 @@
+from handlers.admin import admin_callbacks
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -28,6 +29,20 @@ async def callbacks(
 
 
     accion = query.data
+
+
+    if accion in [
+        "LISTAR_USUARIOS",
+        "REGISTRAR",
+        "ELIMINAR"
+    ]:
+
+        await admin_callbacks(
+            update,
+            context
+        )
+
+        return
 
 
 
