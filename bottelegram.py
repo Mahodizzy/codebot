@@ -25,7 +25,7 @@ def home():
 EMAIL_USER = 'refills.ec@gmail.com'
 EMAIL_PASS = 'cdzt etdq zxjr vlab'
 IMAP_SERVER = 'imap.gmail.com'
-ADMIN_ID = 1481058384
+ADMIN_ID = 8617696458
 
 # Usamos variables de entorno para seguridad en Render
 TOKEN_TELEGRAM = os.environ.get('TOKEN_TELEGRAM')
