@@ -1,3 +1,5 @@
+from handlers.admin import admin_mensajes
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -37,8 +39,12 @@ async def recibir_mensaje(
     correo@gmail.com
     """
 
-
     user_id = update.effective_user.id
+
+    await admin_mensajes(
+        update,
+        context
+    )
 
     correo = (
         update.message.text
