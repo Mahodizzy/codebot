@@ -4,41 +4,74 @@ from services.database.mongo import usuarios
 
 def es_admin(user_id):
     """
-    Devuelve True si el usuario es el administrador.
+    Verifica si el usuario es administrador.
     """
     return user_id == ADMIN_ID
 
 
-def obtener_permisos(user_id):
+
+def obtener_usuario(user_id):
     """
-    Obtiene los permisos de un usuario desde MongoDB.
+    Busca un usuario registrado en MongoDB.
     """
 
+    return usuarios.find_one(
+        {
+            "user_id": str(user_id)
+        }
+    )
+
+
+
+def obtener_correos_autorizados(user_id):
+    """
+    Devuelve la lista de correos permitidos
+    para un usuario.
+    """
+
+    # El administrador tiene acceso total
     if es_admin(user_id):
         return ["*"]
 
-    usuario = usuarios.find_one(
-        {"user_id": str(user_id)}
-    )
+
+    usuario = obtener_usuario(user_id)
+
 
     if not usuario:
         return []
 
-    return usuario.get("permisos", [])
+
+    return usuario.get(
+        "correos",
+        []
+    )
 
 
-def tiene_permiso(user_id, servicio):
+
+def tiene_permiso(user_id, correo):
     """
-    Verifica si el usuario tiene permiso
-    para usar un servicio.
+    Verifica si el usuario puede consultar
+    ese correo específico.
     """
 
-    permisos = obtener_permisos(user_id)
+    correos = obtener_correos_autorizados(
+        user_id
+    )
 
-    if "*" in permisos:
+
+    # Administrador
+    if "*" in correos:
         return True, "Administrador"
 
-    if servicio in permisos:
-        return True, "Acceso permitido"
 
-    return False, f"No tienes permiso para usar {servicio}."
+    correo = correo.lower().strip()
+
+
+    if correo in correos:
+        return True, "Correo autorizado"
+
+
+    return False, (
+        "❌ No tienes permiso para consultar "
+        "este correo."
+    )
