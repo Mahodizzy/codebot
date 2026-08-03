@@ -1,5 +1,4 @@
 import os
-import asyncio
 
 from threading import Thread
 
@@ -165,19 +164,21 @@ def iniciar_bot():
 
     )
 
-
-    print(
+        print(
         "🚀 Bot V2 iniciado correctamente"
     )
 
 
     import asyncio
 
-asyncio.set_event_loop(
-    asyncio.new_event_loop()
-)
+    asyncio.set_event_loop(
+        asyncio.new_event_loop()
+    )
 
-bot_app.run_polling()
+    bot_app.run_polling()
+
+
+    
 
 # ==================================
 # EJECUCIÓN
