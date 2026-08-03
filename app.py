@@ -1,4 +1,5 @@
 import os
+import asyncio
 
 from threading import Thread
 
@@ -17,6 +18,7 @@ from config import TOKEN_TELEGRAM
 from handlers.start import start
 from handlers.callbacks import callbacks
 from handlers.messages import recibir_mensaje
+
 from handlers.admin import (
     admin_callbacks,
     admin_mensajes
@@ -24,7 +26,7 @@ from handlers.admin import (
 
 
 # ==================================
-# SERVIDOR FLASK PARA RENDER
+# SERVIDOR FLASK
 # ==================================
 
 app = Flask(__name__)
@@ -32,10 +34,8 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return (
-        "Bot de Gestión V2 "
-        "de Refills EC está Vivo 🚀"
-    )
+    return "Bot de Gestión V2 de Refills EC está Vivo 🚀"
+
 
 
 def iniciar_flask():
@@ -55,24 +55,26 @@ def iniciar_flask():
     )
 
 
+
 # ==================================
-# ARRANQUE DEL BOT
+# BOT TELEGRAM
 # ==================================
 
 def iniciar_bot():
 
+    # Crear event loop para Python 3.14
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+
     bot_app = (
         ApplicationBuilder()
-        .token(
-            TOKEN_TELEGRAM
-        )
+        .token(TOKEN_TELEGRAM)
         .build()
     )
 
 
-    # ===============================
-    # COMANDO START
-    # ===============================
+    # /start
 
     bot_app.add_handler(
         CommandHandler(
@@ -82,9 +84,7 @@ def iniciar_bot():
     )
 
 
-    # ===============================
-    # BOTONES ADMIN
-    # ===============================
+    # ADMIN CALLBACKS
 
     bot_app.add_handler(
         CallbackQueryHandler(
@@ -94,9 +94,7 @@ def iniciar_bot():
     )
 
 
-    # ===============================
-    # BOTONES SERVICIOS
-    # ===============================
+    # SERVICIOS
 
     bot_app.add_handler(
         CallbackQueryHandler(
@@ -105,9 +103,7 @@ def iniciar_bot():
     )
 
 
-    # ===============================
     # MENSAJES ADMIN
-    # ===============================
 
     bot_app.add_handler(
         MessageHandler(
@@ -118,9 +114,7 @@ def iniciar_bot():
     )
 
 
-    # ===============================
-    # MENSAJES USUARIO
-    # ===============================
+    # MENSAJES USUARIOS
 
     bot_app.add_handler(
         MessageHandler(
@@ -131,12 +125,13 @@ def iniciar_bot():
     )
 
 
-    print(
-        "🚀 Bot V2 iniciado correctamente"
+    print("🚀 Bot V2 iniciado correctamente")
+
+
+    bot_app.run_polling(
+        close_loop=False
     )
 
-
-    bot_app.run_polling()
 
 
 # ==================================
@@ -144,6 +139,7 @@ def iniciar_bot():
 # ==================================
 
 if __name__ == "__main__":
+
 
     Thread(
         target=iniciar_flask
