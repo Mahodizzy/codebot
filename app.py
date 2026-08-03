@@ -164,36 +164,21 @@ def iniciar_bot():
 
     )
 
-        print(
+           print(
         "🚀 Bot V2 iniciado correctamente"
-    )
-
-
-    import asyncio
-
-    asyncio.set_event_loop(
-        asyncio.new_event_loop()
     )
 
     bot_app.run_polling()
 
 
-    
-
 # ==================================
 # EJECUCIÓN
 # ==================================
 
-
 if __name__ == "__main__":
 
-
     Thread(
-
         target=iniciar_flask
-
     ).start()
-
-
 
     iniciar_bot()
