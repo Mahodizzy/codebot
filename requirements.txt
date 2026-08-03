@@ -1,5 +1,0 @@
-Flask
-python-telegram-bot
-pymongo
-dnspython
-imapclient
