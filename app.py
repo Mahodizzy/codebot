@@ -1,5 +1,4 @@
 import os
-import asyncio
 
 from threading import Thread
 
@@ -13,20 +12,15 @@ from telegram.ext import (
     filters
 )
 
-
 from config import TOKEN_TELEGRAM
 
-
 from handlers.start import start
-
 from handlers.callbacks import callbacks
-
 from handlers.messages import recibir_mensaje
 from handlers.admin import (
     admin_callbacks,
     admin_mensajes
 )
-
 
 
 # ==================================
@@ -36,15 +30,12 @@ from handlers.admin import (
 app = Flask(__name__)
 
 
-
 @app.route("/")
 def home():
-
     return (
         "Bot de Gestión V2 "
         "de Refills EC está Vivo 🚀"
     )
-
 
 
 def iniciar_flask():
@@ -56,17 +47,11 @@ def iniciar_flask():
         )
     )
 
-
     app.run(
-
         host="0.0.0.0",
-
         port=port,
-
         debug=False,
-
         use_reloader=False
-
     )
 
 
@@ -86,16 +71,14 @@ def iniciar_bot():
 
 
     # ===============================
-    # COMANDOS
+    # COMANDO START
     # ===============================
 
     bot_app.add_handler(
-
         CommandHandler(
             "start",
             start
         )
-
     )
 
 
@@ -104,12 +87,10 @@ def iniciar_bot():
     # ===============================
 
     bot_app.add_handler(
-
         CallbackQueryHandler(
             admin_callbacks,
             pattern="^(LISTAR_USUARIOS|REGISTRAR|ELIMINAR)$"
         )
-
     )
 
 
@@ -118,11 +99,9 @@ def iniciar_bot():
     # ===============================
 
     bot_app.add_handler(
-
         CallbackQueryHandler(
             callbacks
         )
-
     )
 
 
@@ -131,18 +110,11 @@ def iniciar_bot():
     # ===============================
 
     bot_app.add_handler(
-
         MessageHandler(
-
-            filters.TEXT
-            & ~filters.COMMAND,
-
+            filters.TEXT & ~filters.COMMAND,
             admin_mensajes
-
         ),
-
         group=0
-
     )
 
 
@@ -151,23 +123,18 @@ def iniciar_bot():
     # ===============================
 
     bot_app.add_handler(
-
         MessageHandler(
-
-            filters.TEXT
-            & ~filters.COMMAND,
-
+            filters.TEXT & ~filters.COMMAND,
             recibir_mensaje
-
         ),
-
         group=1
-
     )
 
-           print(
+
+    print(
         "🚀 Bot V2 iniciado correctamente"
     )
+
 
     bot_app.run_polling()
 
@@ -181,5 +148,6 @@ if __name__ == "__main__":
     Thread(
         target=iniciar_flask
     ).start()
+
 
     iniciar_bot()
