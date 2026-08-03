@@ -170,7 +170,13 @@ def iniciar_bot():
     )
 
 
-    bot_app.run_polling()
+    import asyncio
+
+asyncio.set_event_loop(
+    asyncio.new_event_loop()
+)
+
+bot_app.run_polling()
 
 # ==================================
 # EJECUCIÓN
